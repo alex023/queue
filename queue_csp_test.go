@@ -58,6 +58,7 @@ func TestQueueCSP_Stop(t *testing.T) {
 		queue.Push(struct{}{})
 	}
 	queue.Stop()
+	queue.Stop()
 	time.Sleep(time.Second*2)
 	if num==count{
 		t.Errorf("QueueCSP_StopGraceful存在问题,应该执行不到%v,实际执行%2d\n",num,count)
