@@ -12,10 +12,10 @@ func (cm *QueueManager) New() *QueueManager {
 	}
 }
 
-func (cm *QueueManager) Put(key interface{}, msg interface{}) (sended bool) {
+func (cm *QueueManager) Push(key interface{}, msg interface{}) (sended bool) {
 	queue, founded := cm.queues[key]
 	if founded {
-		queue.Put(msg)
+		queue.Push(msg)
 	}
 	return founded
 }
@@ -24,7 +24,7 @@ func (cm *QueueManager) Put(key interface{}, msg interface{}) (sended bool) {
 func (cm *QueueManager) GetOrCreateChannel(key interface{},receive ReceiveFunc) (newQueue Queue, newer bool) {
 	newQueue, founded := cm.queues[key]
 	if !founded {
-		newQueue = BoundedQueue(_BUFFER,receive)
+		newQueue = BoundedQueueCSP(_BUFFER,receive)
 		cm.queues[key] = newQueue
 	}
 	newer = !founded
@@ -34,14 +34,14 @@ func (cm *QueueManager) GetOrCreateChannel(key interface{},receive ReceiveFunc) 
 //释放管理器中指定的chan
 func (cm *QueueManager) Release(key interface{}) {
 	if queue, founded := cm.queues[key]; founded {
-		queue.Close()
+		queue.Stop()
 		delete(cm.queues, key)
 	}
 }
 
 func (cm *QueueManager) ReleaseAll() {
 	for key, queue := range cm.queues {
-		queue.Close()
+		queue.Stop()
 		delete(cm.queues, key)
 	}
 }
