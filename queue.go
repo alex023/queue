@@ -1,6 +1,5 @@
 package queue
 
-
 const (
 	_OPENING = 0
 	_CLOSED  = 1

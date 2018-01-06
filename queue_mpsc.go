@@ -17,23 +17,23 @@ type PosionPill struct{}
 
 var posionPill = &PosionPill{}
 
-type QueueMpsc struct {
+type queueMPSC struct {
 	closed         int32
 	scheduleStatus int32
 	userQueue      *MPSC
 	invoker        ReceiveFunc
 }
 
-//创建一个指定缓冲区大小的队列
+//BoundedQueueMpsc 创建一个指定缓冲区大小的队列
 func BoundedQueueMpsc(size int, receiver ReceiveFunc) Queue {
-	queue := &QueueMpsc{
+	queue := &queueMPSC{
 		userQueue: NewMpsc(),
 		invoker:   receiver,
 	}
 	return queue
 }
 
-func (queue *QueueMpsc) receive(channel chan interface{}, cancelCtx context.Context, receive ReceiveFunc) {
+func (queue *queueMPSC) receive(channel chan interface{}, cancelCtx context.Context, receive ReceiveFunc) {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Printf("[clock] recovering reason is %+v. More detail:", err)
@@ -57,20 +57,20 @@ func (queue *QueueMpsc) receive(channel chan interface{}, cancelCtx context.Cont
 	queue.invoker = nil
 }
 
-//向消费者推送消息
-func (queue *QueueMpsc) Push(msg interface{}) {
+//Push 向消费者推送消息
+func (queue *queueMPSC) Push(msg interface{}) {
 	if atomic.LoadInt32(&queue.closed) != _CLOSED {
 		queue.userQueue.Push(msg)
 		go queue.schedule()
 	}
 }
-func (queue *QueueMpsc) schedule() {
+func (queue *queueMPSC) schedule() {
 	if atomic.CompareAndSwapInt32(&queue.scheduleStatus, _IDLE, _RUNNING) {
 		queue.run()
 		atomic.StoreInt32(&queue.scheduleStatus, _IDLE)
 	}
 }
-func (queue *QueueMpsc) run() {
+func (queue *queueMPSC) run() {
 	var msg interface{}
 
 	defer func() {
@@ -102,15 +102,15 @@ func (queue *QueueMpsc) run() {
 	}
 }
 
-//当队列任务执行完毕后，关闭消息队列
-func (queue *QueueMpsc) StopGraceful() {
+//StopGraceful 当队列任务执行完毕后，关闭消息队列
+func (queue *queueMPSC) StopGraceful() {
 	if atomic.LoadInt32(&queue.closed) != _CLOSED {
 		queue.Push(posionPill)
 	}
 }
 
-//立即关闭任务队列，不论队列中是否还有没被执行的消息
-func (queue *QueueMpsc) Stop() {
+//Stop 立即关闭任务队列，不论队列中是否还有没被执行的消息
+func (queue *queueMPSC) Stop() {
 	if atomic.CompareAndSwapInt32(&queue.closed, _OPENING, _CLOSED) {
 		queue.userQueue.Empty()
 	}

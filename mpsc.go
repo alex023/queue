@@ -9,6 +9,7 @@ type node struct {
 	next *node
 	data interface{}
 }
+
 // MPSC 基于 go 的multi-produce single-consumer的数据结构
 type MPSC struct {
 	head, tail *node
