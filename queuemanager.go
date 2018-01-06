@@ -24,7 +24,7 @@ func (cm *QueueManager) Push(key interface{}, msg interface{}) (sended bool) {
 func (cm *QueueManager) GetOrCreateChannel(key interface{},receive ReceiveFunc) (newQueue Queue, newer bool) {
 	newQueue, founded := cm.queues[key]
 	if !founded {
-		newQueue = BoundedQueueCSP(_BUFFER,receive)
+		newQueue = BoundedQueueMpsc(_BUFFER,receive)
 		cm.queues[key] = newQueue
 	}
 	newer = !founded

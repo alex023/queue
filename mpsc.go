@@ -1,7 +1,5 @@
 package queue
 
-// This implementation is based on http://www.1024cores.net/home/lock-free-algorithms/queues/non-intrusive-mpsc-node-based-queue
-
 import (
 	"sync/atomic"
 	"unsafe"
@@ -9,9 +7,9 @@ import (
 
 type node struct {
 	next *node
-	val  interface{}
+	data interface{}
 }
-
+// MPSC 基于 go 的multi-produce single-consumer的数据结构
 type MPSC struct {
 	head, tail *node
 }
@@ -24,38 +22,29 @@ func NewMpsc() *MPSC {
 	return q
 }
 
-// Push adds x to the back of the queue.
-//
-// Push can be safely called from multiple goroutines
-func (q *MPSC) Push(x interface{}) {
-	n := &node{val: x}
-	// current producer acquires head node
-	prev := (*node)(atomic.SwapPointer((*unsafe.Pointer)(unsafe.Pointer(&q.head)), unsafe.Pointer(n)))
-
-	// release node to consumer
+// Push 添加一条新的消息到队列的末尾
+func (mpsc *MPSC) Push(x interface{}) {
+	n := &node{data: x}
+	prev := (*node)(atomic.SwapPointer((*unsafe.Pointer)(unsafe.Pointer(&mpsc.head)), unsafe.Pointer(n)))
 	prev.next = n
 }
 
-// Pop removes the item from the front of the queue or nil if the queue is empty
-//
-// Pop must be called from a single, consumer goroutine
-func (q *MPSC) Pop() interface{} {
-	tail := q.tail
+// Pop 从队列中提取一条消息交付给消费者
+func (mpsc *MPSC) Pop() interface{} {
+	tail := mpsc.tail
 	next := (*node)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&tail.next)))) // acquire
 	if next != nil {
-		q.tail = next
-		v := next.val
-		next.val = nil
+		mpsc.tail = next
+		v := next.data
+		next.data = nil
 		return v
 	}
 	return nil
 }
 
-// Empty returns true if the queue is empty
-//
-// Empty must be called from a single, consumer goroutine
-func (q *MPSC) Empty() bool {
-	tail := q.tail
+// Empty 清空队列
+func (mpsc *MPSC) Empty() bool {
+	tail := mpsc.tail
 	next := (*node)(atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&tail.next))))
 	return next == nil
 }
