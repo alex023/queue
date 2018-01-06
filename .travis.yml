@@ -1,0 +1,18 @@
+language: go
+
+
+go:
+  - 1.8.x
+  - 1.9.x
+
+before_script:
+  - go get -t -v github.com/alex023/queue/...
+
+script:
+  - go test -v github.com/alex023/queue/
+
+notifications:
+  email:
+    recipients: 12242284@qq.com
+    on_success: change
+    on_failure: always
