@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	_IDLE    = iota
+	_IDLE = iota
 	_RUNNING
 )
 
@@ -21,7 +21,6 @@ type queueMPSC struct {
 	closed         int32
 	scheduleStatus int32
 	userQueue      *MPSC
-	userMessages   int32
 	invoker        ReceiveFunc
 }
 
@@ -38,7 +37,6 @@ func BoundedQueueMpsc(size int, receiver ReceiveFunc) Queue {
 func (queue *queueMPSC) Push(msg interface{}) {
 	if atomic.LoadInt32(&queue.closed) != _CLOSED {
 		queue.userQueue.Push(msg)
-		atomic.AddInt32(&queue.userMessages,1)
 		go queue.schedule()
 	}
 }
@@ -72,11 +70,10 @@ func (queue *queueMPSC) run() {
 
 		if msg = queue.userQueue.Pop(); msg != nil && msg != poisonPill {
 			queue.invoker(msg)
-			atomic.AddInt32(&queue.userMessages,-1)
-		} else if msg==poisonPill{
+		} else if msg == poisonPill {
 			queue.Stop()
 			return
-		}else{
+		} else {
 			return
 		}
 	}
