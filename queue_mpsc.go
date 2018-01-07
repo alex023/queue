@@ -1,26 +1,27 @@
 package queue
 
 import (
-	"context"
 	"log"
+	"runtime"
 	"runtime/debug"
 	"sync/atomic"
-	"runtime"
 )
 
 const (
-	_IDLE = iota
+	_IDLE    = iota
 	_RUNNING
 )
 
+//PosionPill 退出指令定义，用于当前任务队列数据处理完成时退出
 type PosionPill struct{}
 
-var posionPill = &PosionPill{}
+var poisonPill = &PosionPill{}
 
 type queueMPSC struct {
 	closed         int32
 	scheduleStatus int32
 	userQueue      *MPSC
+	userMessages   int32
 	invoker        ReceiveFunc
 }
 
@@ -33,34 +34,11 @@ func BoundedQueueMpsc(size int, receiver ReceiveFunc) Queue {
 	return queue
 }
 
-func (queue *queueMPSC) receive(channel chan interface{}, cancelCtx context.Context, receive ReceiveFunc) {
-	defer func() {
-		if err := recover(); err != nil {
-			log.Printf("[clock] recovering reason is %+v. More detail:", err)
-			log.Println(string(debug.Stack()))
-		}
-	}()
-
-	for {
-		if atomic.LoadInt32(&queue.closed) == _CLOSED {
-			break
-		}
-		data := queue.userQueue.Pop()
-		if data != nil && data != posionPill {
-			queue.invoker(data)
-		} else if data == posionPill {
-			break
-		}
-	}
-	//release resource
-	queue.userQueue.Empty()
-	queue.invoker = nil
-}
-
 //Push 向消费者推送消息
 func (queue *queueMPSC) Push(msg interface{}) {
 	if atomic.LoadInt32(&queue.closed) != _CLOSED {
 		queue.userQueue.Push(msg)
+		atomic.AddInt32(&queue.userMessages,1)
 		go queue.schedule()
 	}
 }
@@ -72,40 +50,42 @@ func (queue *queueMPSC) schedule() {
 }
 func (queue *queueMPSC) run() {
 	var msg interface{}
-
 	defer func() {
-		defer func() {
-			if err := recover(); err != nil {
-				log.Printf("[queue_mpsc] recovering reason is %+v. More detail:", err)
-				log.Println(string(debug.Stack()))
-			}
-		}()
+		if err := recover(); err != nil {
+			log.Printf("[queue_mpsc] recovering reason is %+v. More detail:", err)
+			log.Println(string(debug.Stack()))
+		}
 	}()
 
-	i,throughput:=0,300
-	for  {
+	i, throughput := 0, 100
+	for {
 		//长时间消耗，则考虑临时释放系统占用
-		i++
-		if throughput<i{
-			i=0
+		if throughput < i {
+			i = 0
 			runtime.Gosched()
 		}
+		i++
 
-		if atomic.LoadInt32(&queue.closed) == _CLOSED {
+		if queue.closed == _CLOSED {
 			return
 		}
-		if msg = queue.userQueue.Pop(); msg != nil && msg != posionPill {
+
+		if msg = queue.userQueue.Pop(); msg != nil && msg != poisonPill {
 			queue.invoker(msg)
-		} else {
+			atomic.AddInt32(&queue.userMessages,-1)
+		} else if msg==poisonPill{
+			queue.Stop()
+			return
+		}else{
 			return
 		}
 	}
 }
 
-//StopGraceful 当队列任务执行完毕后，关闭消息队列
+//StopGraceful 当前队列任务执行完毕后，关闭消息队列。该操作后再送入的消息，将会无效。
 func (queue *queueMPSC) StopGraceful() {
 	if atomic.LoadInt32(&queue.closed) != _CLOSED {
-		queue.Push(posionPill)
+		queue.Push(poisonPill)
 	}
 }
 

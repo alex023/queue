@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func TestBoundedQueueMscp(t *testing.T) {
+func TestBoundedQueueMpsc(t *testing.T) {
 	var (
 		count int
 		num   = 20
@@ -20,7 +20,7 @@ func TestBoundedQueueMscp(t *testing.T) {
 	}
 	time.Sleep(time.Second * 1)
 	if count != num {
-		t.Error("消息接受存在问题")
+		t.Errorf("TestBoundedQueueMpsc存在问题,应该执行%v,实际执行%2d\n", num, count)
 	}
 }
 
